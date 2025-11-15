@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoCart Demo - User-Friendly (USD)</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    padding:20px;
+    background-image: url('https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=1470&q=80');
+    background-size: cover;
+    background-attachment: fixed;
+    color:#fff;
+    transition:0.3s;
+}
+body.dark { filter: brightness(0.8); }
+h1 { text-align:center; text-shadow: 2px 2px 5px rgba(0,0,0,0.7); }
+
+.controls { text-align:center; margin-bottom:20px; }
+button { padding:5px 10px; margin:5px; border-radius:6px; border:1px solid #ccc; cursor:pointer; }
+.scan-btn { background:#4caf50; color:#fff; font-size:1.1em; font-weight:bold; padding:10px 20px; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); border:none; border-radius:8px; }
+.scan-btn:hover { background:#45a049; }
+
+body.dark button { background-color:#333; color:#fff; border:1px solid #666; }
+
+.container { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; }
+.products, .cart {
+    background: rgba(255,255,255,0.9);
+    border-radius:12px;
+    padding:20px;
+    box-shadow:0 4px 8px rgba(0,0,0,0.2);
+    color:#000;
+}
+body.dark .products, body.dark .cart { background: rgba(30,30,30,0.9); color:#fff; }
+
+.product-card, .cart-item {
+    display:flex;
+    gap:10px;
+    border-bottom:1px solid #ddd;
+    padding:10px;
+    align-items:center;
+    border-radius:8px;
+    background: rgba(200,255,200,0.3);
+    position:relative;
+    transition:0.3s;
+}
+.product-card.zero { opacity:0.5; }
+body.dark .product-card, body.dark .cart-item { border-bottom:1px solid #444; }
+
+.product-card img, .cart-item img { width:80px; height:80px; object-fit:cover; border-radius:8px; }
+.product-details { flex:1; }
+.product-details h2 { margin:0 0 5px 0; color:#2e7d32; }
+body.dark .product-details h2 { color:#a5d6a7; }
+.description { font-size:0.85em; color:#555; }
+body.dark .description { color:#ccc; }
+.price { font-weight:bold; color:#1b5e20; }
+body.dark .price { color:#81c784; }
+.original-price { text-decoration: line-through; color:#888; font-size:0.85em; margin-right:5px; }
+.discount { font-size:0.85em; color:red; font-weight:bold; margin-left:5px; }
+
+.quantity-control { display:flex; align-items:center; gap:5px; margin-top:5px; }
+.quantity-control button { padding:2px 6px; font-size:14px; }
+
+.tooltip {
+    position: absolute;
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    padding:10px;
+    border-radius:8px;
+    font-size:0.85em;
+    z-index:100;
+    width:220px;
+    display:none;
+}
+.tooltip h3 { margin:0 0 5px 0; color:#a5d6a7; }
+.tooltip .price-detail { margin-top:5px; }
+
+.cart h2 { text-align:center; color:#2e7d32; }
+body.dark .cart h2 { color:#a5d6a7; }
+.cart-total { font-weight:bold; margin-top:15px; text-align:right; color:#2e7d32; }
+body.dark .cart-total { color:#81c784; }
+.pay-button { width:100%; padding:10px; margin-top:10px; font-weight:bold; }
+
+.history { margin-top:20px; background: rgba(232,245,233,0.8); padding:10px; border-radius:8px; font-size:0.85em; }
+body.dark .history { background: rgba(44,44,44,0.8); color:#fff; }
+.history-session { border-top:2px dashed #2e7d32; margin:10px 0; padding-top:5px; }
+body.dark .history-session { border-top:2px dashed #81c784; }
+.history-item { margin-bottom:5px; }
+
+.scan-bar {
+    position:absolute;
+    left:0; right:0; top:0; bottom:0;
+    background: rgba(0,255,0,0.3);
+    height:0;
+    border-radius:8px;
+    pointer-events:none;
+    animation: scanAnim 1s forwards;
+}
+
+@keyframes scanAnim {
+    0% { top:0; height:0; opacity:0.5; }
+    50% { height:100%; opacity:0.7; }
+    100% { top:0; height:100%; opacity:0; }
+}
+</style>
+</head>
+<body>
+
+<h1>EcoCart Demo - User-Friendly (USD)</h1>
+
+<div class="controls">
+<button class="scan-btn" onclick="scanAllProducts()">Scan Products</button>
+<button onclick="toggleDarkMode()">Toggle Dark/Light Mode</button>
+</div>
+
+<div class="container">
+<div class="products" id="productsContainer"></div>
+<div class="cart">
+<h2>Your Cart</h2>
+<div id="cartItems"></div>
+<div class="cart-total" id="cartTotal">Total: $0.00</div>
+<button class="pay-button" onclick="payOnline()">Pay Online</button>
+<div class="history" id="historyContainer"><strong>Purchase History:</strong></div>
+</div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+let productsData = [
+{name:"Fresh Apple", price:2.00, category:"fruit", img:"https://upload.wikimedia.org/wikipedia/commons/1/15/Red_Apple.jpg", description:"Healthy, rich in vitamin C", discount:10},
+{name:"Banana", price:1.50, category:"fruit", img:"https://upload.wikimedia.org/wikipedia/commons/8/8a/Banana-Single.jpg", description:"High in energy and potassium", discount:5},
+{name:"Orange", price:2.50, category:"fruit", img:"https://upload.wikimedia.org/wikipedia/commons/c/c4/Orange-Fruit-Pieces.jpg", description:"Rich in vitamin C, boosts immunity", discount:10},
+{name:"Milk", price:3.00, category:"dairy", img:"https://media.istockphoto.com/id/1206080627/photo/glass-of-milk.jpg?s=612x612&w=0&k=20&c=h4ElcpQ3l7mL-3ssXIj-Cl_nlW0j1sWgyKvYRoipdM0=", description:"Calcium-rich, good for bones", discount:15},
+{name:"Cheese", price:4.50, category:"dairy", img:"https://pearlvalleycheese.com/cdn/shop/files/charcuterie-board-with-swiss-cheese.jpg?v=1678982236&width=1000", description:"High in protein, rich in vitamin B12", discount:20},
+{name:"Yogurt", price:2.80, category:"dairy", img:"https://media.istockphoto.com/id/187060812/photo/yogurt.jpg?s=612x612&w=0&k=20&c=RotNYuihZdb6YC39fHpsJUm1FeVhMIeTIIVe7dRYOUQ=", description:"Good for digestion, rich in probiotics", discount:15}
+];
+
+let cart=[];
+const tooltip=document.getElementById('tooltip');
+
+function renderProducts(products){
+const container=document.getElementById('productsContainer');
+container.innerHTML='';
+products.forEach(prod=>{
+let discountedPrice = (prod.price * (1 - prod.discount/100)).toFixed(2);
+let div=document.createElement('div');
+div.className='product-card';
+div.dataset.price=discountedPrice;
+div.dataset.category=prod.category;
+
+div.innerHTML=`
+<img src="${prod.img}" alt="${prod.name}">
+<div class="product-details">
+<h2>${prod.name}</h2>
+<p class="description">${prod.description}</p>
+<div class="price"><span class="original-price">$${prod.price.toFixed(2)}</span> $${discountedPrice} <span class="discount">-${prod.discount}%</span></div>
+<div class="quantity-control">
+<button onclick="changeQuantity(this,-1)">-</button>
+<input type="number" value="1" min="0" style="width:40px;text-align:center;" readonly>
+<button onclick="changeQuantity(this,1)">+</button>
+</div>
+</div>
+`;
+container.appendChild(div);
+
+div.addEventListener('mouseover', (e)=>{
+tooltip.style.display='block';
+tooltip.innerHTML=`
+<h3>${prod.name}</h3>
+<p>${prod.description}</p>
+<p class="price-detail">Category: ${prod.category}</p>
+<p class="price-detail">Original: $${prod.price.toFixed(2)} | Sale: $${discountedPrice} (-${prod.discount}%)</p>
+`;
+tooltip.style.left = e.pageX + 15 + 'px';
+tooltip.style.top = e.pageY + 15 + 'px';
+});
+div.addEventListener('mousemove', (e)=>{
+tooltip.style.left = e.pageX + 15 + 'px';
+tooltip.style.top = e.pageY + 15 + 'px';
+});
+div.addEventListener('mouseout', ()=>{
+tooltip.style.display='none';
+});
+});
+updateZeroHighlight();
+}
+
+function changeQuantity(btn, delta){
+let input = btn.parentElement.querySelector('input');
+let val = parseInt(input.value) + delta;
+if(val < 0) val = 0;
+input.value = val;
+updateZeroHighlight();
+}
+
+function updateZeroHighlight(){
+document.querySelectorAll('.product-card').forEach(card=>{
+let qty = parseInt(card.querySelector('input').value);
+card.classList.toggle('zero', qty===0);
+});
+}
+
+function toggleDarkMode(){document.body.classList.toggle('dark');}
+
+function updateCartDisplay(){
+const cartContainer=document.getElementById('cartItems');
+cartContainer.innerHTML='';
+let total=0;
+cart.forEach((item,index)=>{
+total+=item.total;
+let div=document.createElement('div');
+div.className='cart-item';
+div.innerHTML=`
+<img src="${item.img}" alt="${item.name}">
+<div style="flex:1;">
+<div>${item.name}</div>
+<div class="quantity-control">
+<button onclick="changeCartQuantity(${index},-1)">-</button>
+<input type="number" value="${item.quantity}" min="1" style="width:40px;text-align:center;" readonly>
+<button onclick="changeCartQuantity(${index},1)">+</button>
+</div>
+<div>$${item.total.toFixed(2)}</div>
+</div>
+<button onclick="removeFromCart(${index})">Remove</button>
+`;
+cartContainer.appendChild(div);
+});
+document.getElementById('cartTotal').innerText='Total: $'+total.toFixed(2);
+}
+
+function changeCartQuantity(index, delta){
+let item = cart[index];
+item.quantity += delta;
+if(item.quantity <1) item.quantity=1;
+const discountedPrice = parseFloat((item.total/item.quantity).toFixed(2));
+item.total = discountedPrice * item.quantity;
+updateCartDisplay();
+}
+
+function scanAllProducts(){
+const cards=document.querySelectorAll('.product-card');
+cards.forEach((card,index)=>{
+const qtyInput = card.querySelector('input');
+let quantity = parseInt(qtyInput.value);
+if(quantity>0){
+const scanBar=document.createElement('div');
+scanBar.className='scan-bar';
+card.appendChild(scanBar);
+setTimeout(()=>{
+card.removeChild(scanBar);
+const prod = productsData[index];
+const discountedPrice = parseFloat((prod.price * (1 - prod.discount/100)).toFixed(2));
+const idx=cart.findIndex(item=>item.name===prod.name);
+if(idx>-1){
+cart[idx].quantity += quantity;
+cart[idx].total += discountedPrice * quantity;
+} else {
+cart.push({name:prod.name, quantity:quantity, total:discountedPrice*quantity, img:prod.img});
+}
+updateCartDisplay();
+},1000);
+}
+});
+}
+
+function removeFromCart(index){cart.splice(index,1);updateCartDisplay();}
+
+function payOnline(){
+if(cart.length===0){alert("Cart is empty!"); return;}
+let totalAmount=cart.reduce((sum,item)=>sum+item.total,0);
+alert(`Payment Successful! Total: $${totalAmount.toFixed(2)}`);
+const historyContainer=document.getElementById('historyContainer');
+
+const now = new Date();
+const date = now.toLocaleDateString();
+const time = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+let sessionDiv = document.createElement('div');
+sessionDiv.className = 'history-session';
+let sessionHeader = document.createElement('div');
+sessionHeader.innerHTML = `<strong>Payment: ${date} ${time}</strong>`;
+sessionDiv.appendChild(sessionHeader);
+
+cart.forEach(item=>{
+let div=document.createElement('div');
+div.className='history-item';
+div.innerText=`${item.name} x${item.quantity} - $${item.total.toFixed(2)}`;
+sessionDiv.appendChild(div);
+});
+
+historyContainer.prepend(sessionDiv);
+cart=[];
+updateCartDisplay();
+}
+
+// Initialize
+renderProducts(productsData);
+</script>
+
+</body>
+</html>
+
